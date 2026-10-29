@@ -24,7 +24,10 @@
                                 <i class="fas fa-money-check-alt me-2 text-warning"></i> Balances de formas de pago (gráfico de barras)
                             </button>
                             <button id="btn-balance_positivo" class="btn btn-dark border-secondary text-start" onclick="cambiarVista('balance_positivo')">
-                                <i class="fas fa-calculator me-2 text-success"></i> Cuánto de balance positivo hubo (ventas - gastos - compras) - formato de tabla
+                                <i class="fas fa-calculator me-2 text-success"></i> Balance positivo (ventas - gastos - compras)
+                            </button>
+                            <button id="btn-mas_vendidos" class="btn btn-dark border-secondary text-start" onclick="cambiarVista('mas_vendidos')">
+                                <i class="fas fa-fire me-2 text-warning"></i> Productos más vendidos (formato de tabla)
                             </button>
                             <button id="btn-vendedores" class="btn btn-dark border-secondary text-start" onclick="cambiarVista('vendedores')">
                                 <i class="fas fa-user-tag me-2 text-primary"></i> Qué vendedor vendió más (gráfico de torta)
@@ -50,6 +53,7 @@
                             <canvas id="canvasBalance"></canvas>
                         </div>
 
+                        {{-- TABLA: BALANCE POSITIVO --}}
                         <div id="contenedor-tabla" class="w-100 table-responsive" style="display: none;">
                             <h5 class="text-center mb-3 text-success">Balance Positivo (Ventas - Gastos - Compras)</h5>
                             <table class="table table-dark table-striped border border-secondary align-middle m-0">
@@ -87,13 +91,44 @@
                                             </span>
                                         </td>
                                     </tr>
-                                    
-                                    {{-- FILA ADAPTADA EXACTAMENTE A TU FORMATO --}}
                                     <tr class="table-active border-top border-secondary fw-bold fs-6">
                                         <td><i class="fas fa-percentage text-info me-2"></i> Ganancia Real Limpia (Margen de Productos)</td>
                                         <td class="text-end text-info font-monospace">${{ number_format($dataBalance['gananciaLimpia'], 2) }}</td>
                                         <td class="text-center"><span class="badge bg-info text-dark">Ganancia Limpia</span></td>
                                     </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {{-- TABLA: PRODUCTOS MÁS VENDIDOS --}}
+                        <div id="contenedor-tabla-mas-vendidos" class="w-100 table-responsive" style="display: none; max-height: 48vh; overflow-y: auto;">
+                            <h5 class="text-center mb-3 text-warning"><i class="fas fa-medal me-2"></i>Ranking de Productos Más Vendidos</h5>
+                            <table class="table table-dark table-striped border border-secondary align-middle m-0">
+                                <thead>
+                                    <tr class="text-warning text-center">
+                                        <th>#</th>
+                                        <th>Producto</th>
+                                        <th>Marca</th>
+                                        <th>Categoría</th>
+                                        <th>Unidades</th>
+                                        <th>Recaudado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($dataMasVendidos as $idx => $item)
+                                        <tr>
+                                            <td class="text-center fw-bold">{{ $idx + 1 }}</td>
+                                            <td>{{ $item->producto }}</td>
+                                            <td><span class="badge bg-info text-dark">{{ $item->marca ?? 'Sin marca' }}</span></td>
+                                            <td><span class="badge bg-secondary">{{ $item->categoria ?? 'General' }}</span></td>
+                                            <td class="text-center fw-bold text-success">{{ $item->total_unidades }}</td>
+                                            <td class="text-end font-monospace">${{ number_format($item->total_ingreso, 2) }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-3">No hay registros de ventas para el período seleccionado.</td>
+                                        </tr>
+                                    @endforelse
                                 </tbody>
                             </table>
                         </div>
@@ -152,7 +187,6 @@
 
     let graficoActivo = null;
 
-    // SOLUCIÓN JS: Control de exclusión mutua para limpiar los campos e impedir que se pisen los filtros
     document.getElementById('filtroAnio').addEventListener('change', function() {
         if(this.value !== "") {
             document.getElementById('filtroFechaInicio').value = "";
@@ -166,7 +200,6 @@
     document.getElementById('filtroFechaInicio').addEventListener('input', limpiarAnioSiHayFecha);
     document.getElementById('filtroFechaFin').addEventListener('input', limpiarAnioSiHayFecha);
 
-
     function cambiarVista(tipo) {
         document.getElementById('inputVistaOculta').value = tipo;
 
@@ -176,14 +209,22 @@
 
         const contenedorGrafico = document.getElementById('contenedor-grafico');
         const contenedorTabla = document.getElementById('contenedor-tabla');
+        const contenedorTablaMasVendidos = document.getElementById('contenedor-tabla-mas-vendidos');
 
         if (tipo === 'balance_positivo') {
             contenedorGrafico.style.display = 'none';
             contenedorTabla.style.display = 'block';
+            contenedorTablaMasVendidos.style.display = 'none';
+            return;
+        } else if (tipo === 'mas_vendidos') {
+            contenedorGrafico.style.display = 'none';
+            contenedorTabla.style.display = 'none';
+            contenedorTablaMasVendidos.style.display = 'block';
             return;
         } else {
             contenedorGrafico.style.display = 'block';
             contenedorTabla.style.display = 'none';
+            contenedorTablaMasVendidos.style.display = 'none';
         }
 
         if (graficoActivo) { graficoActivo.destroy(); }

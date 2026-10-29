@@ -9,19 +9,11 @@ class BalanceController extends Controller
 {
     public function mostrar(Request $request)
     {
-        // CONDICIONAL INTELIGENTE CORREGIDO Y SEGURO
         if ($request->filled('fechainicio') || $request->filled('fechafin')) {
-            
-            // CASO A: Filtrado estricto por rango manual de fechas particulares
             $inicio = $request->input('fechainicio') ? $request->input('fechainicio') . ' 00:00:00' : '2024-01-01 00:00:00';
             $fin = $request->input('fechafin') ? $request->input('fechafin') . ' 23:59:59' : now()->format('Y-m-d H:i:s');
-            
-            // Deducimos el año base de la fecha inicial para no romper la gráfica anual
             $anioSeleccionado = date('Y', strtotime($inicio));
-            
         } else {
-            
-            // CASO B: No hay fechas cargadas, filtramos el año completo seleccionado
             $anioSeleccionado = $request->input('anio') ? $request->input('anio') : now()->year;
             $inicio = $anioSeleccionado . '-01-01 00:00:00';
             $fin = $anioSeleccionado . '-12-31 23:59:59';
@@ -47,7 +39,7 @@ class BalanceController extends Controller
             ->groupBy('metodos_pago.id_metodo_pago', 'metodos_pago.nombre')
             ->get();
 
-        // REQUERIMIENTO C: Gastos / Inversión por Proveedor (sumado según productos de cada compra)
+        // REQUERIMIENTO C: Gastos / Inversión por Proveedor
         $dataGastosProveedor = DB::table('productosxcompras')
             ->join('compras', 'productosxcompras.id_compra', '=', 'compras.id_compra')
             ->join('productos', 'productosxcompras.id_producto', '=', 'productos.id_producto')
@@ -80,7 +72,7 @@ class BalanceController extends Controller
             ->orderBy('mes', 'asc')
             ->get();
 
-        // REQUERIMIENTO F: Balance Positivo Global (Formato Tabla)
+        // REQUERIMIENTO F: Balance Positivo Global
         $totalVentas = DB::table('ventas')
             ->leftJoin('ventas_anuladas', 'ventas.id_venta', '=', 'ventas_anuladas.id_venta')
             ->whereNull('ventas_anuladas.id_venta')
@@ -95,15 +87,13 @@ class BalanceController extends Controller
             ->whereBetween('gastos.fecha_gasto', [substr($inicio, 0, 10), substr($fin, 0, 10)])
             ->sum('monto');
 
-        // NUEVO CÁLCULO: Balance de Ganancias Limpio (Ganancia Neta histórica de productos)
-       $totalCostos = DB::table('ventas_productos')
+        $totalCostos = DB::table('ventas_productos')
             ->join('ventas', 'ventas_productos.id_venta', '=', 'ventas.id_venta')
             ->leftJoin('ventas_anuladas', 'ventas.id_venta', '=', 'ventas_anuladas.id_venta')
             ->whereNull('ventas_anuladas.id_venta_anulada')
             ->whereBetween('ventas.fecha_venta', [$inicio, $fin])
             ->sum(DB::raw('COALESCE(ventas_productos.precio_lista, 0) * ventas_productos.cantidad'));
 
-        // 2. La ganancia real es la plata neta que ingresó menos lo que costó la mercadería
         $gananciaLimpia = $totalVentas - $totalCostos;
 
         $dataBalance = [
@@ -114,6 +104,28 @@ class BalanceController extends Controller
             'gananciaLimpia' => $gananciaLimpia 
         ];
 
+        // REQUERIMIENTO G: Ranking de Productos Más Vendidos
+        $dataMasVendidos = DB::table('ventas_productos')
+            ->join('ventas', 'ventas_productos.id_venta', '=', 'ventas.id_venta')
+            ->leftJoin('ventas_anuladas', 'ventas.id_venta', '=', 'ventas_anuladas.id_venta')
+            ->join('productos', 'ventas_productos.id_producto', '=', 'productos.id_producto')
+            ->leftJoin('categorias', 'productos.id_categoria', '=', 'categorias.id_categoria')
+            ->leftJoin('marcas', 'productos.id_marca', '=', 'marcas.id_marca')
+            ->whereNull('ventas_anuladas.id_venta')
+            ->whereBetween('ventas.fecha_venta', [$inicio, $fin])
+            ->select(
+                'productos.codigo',
+                'productos.nombre as producto',
+                'categorias.categoria as categoria',
+                'marcas.nombre as marca',
+                DB::raw('SUM(ventas_productos.cantidad) as total_unidades'),
+                DB::raw('SUM(ventas_productos.cantidad * ventas_productos.precio) as total_ingreso')
+            )
+            ->groupBy('productos.id_producto', 'productos.codigo', 'productos.nombre', 'categorias.categoria', 'marcas.nombre')
+            ->orderByDesc('total_unidades')
+            ->limit(25)
+            ->get();
+
         return view('balances', compact(
             'dataVendedores', 
             'dataFormasPago', 
@@ -121,6 +133,7 @@ class BalanceController extends Controller
             'dataVentasMes', 
             'dataVentasAnio',
             'dataBalance',
+            'dataMasVendidos',
             'anioSeleccionado'
         ));
     }

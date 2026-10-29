@@ -40,30 +40,63 @@ class VentaController extends Controller
 
     public function buscarProductos(Request $request)
     {
-        $queryStr = $request->get('q');
-    
-        $consulta = DB::table('productos')->where('estado', 'activo');
+        $queryStr = trim($request->get('q', ''));
 
-        if (!empty($queryStr)) {
-            
-            $palabras = array_filter(explode(' ', $queryStr));
-
-            $consulta->where(function ($q) use ($palabras) {
-                foreach ($palabras as $palabra) {
-                    $q->where(function ($subQ) use ($palabra) {
-                        $subQ->where('nombre', 'LIKE', '%' . $palabra . '%')
-                            ->orWhere('codigo_barra', 'LIKE', '%' . $palabra . '%');
-                    });
-                }
-            });
+        if (empty($queryStr)) {
+            return response()->json([]);
         }
+
+        // Base de consulta con Marcas y Categorías
+        $consultaBase = DB::table('productos as p')
+            ->leftJoin('marcas as m', 'p.id_marca', '=', 'm.id_marca')
+            ->leftJoin('categorias as c', 'p.id_categoria', '=', 'c.id_categoria')
+            ->where('p.estado', 'activo')
+            ->select(
+                'p.id_producto',
+                'p.nombre',
+                'p.codigo',
+                'p.codigo_barra',
+                'p.precio_venta',
+                'p.precio_lista',
+                'p.stock',
+                'm.nombre as marca',
+                'c.categoria as categoria'
+            );
+
+        // 1. PRIORIDAD EXACTA (Lector de barra o código idéntico)
+        $productoExacto = (clone $consultaBase)
+            ->where(function ($q) use ($queryStr) {
+                $q->where('p.codigo_barra', $queryStr)
+                  ->orWhere('p.codigo', $queryStr);
+            })
+            ->get();
+
+        if ($productoExacto->isNotEmpty()) {
+            return response()->json($productoExacto);
+        }
+
+        // 2. BÚSQUEDA GENERAL: Nombre, Marca, Categoría o Códigos que empiezan con el texto
+        $palabras = array_filter(explode(' ', $queryStr));
+
+        $consulta = clone $consultaBase;
+        $consulta->where(function ($q) use ($palabras) {
+            foreach ($palabras as $palabra) {
+                $q->where(function ($subQ) use ($palabra) {
+                    $subQ->where('p.nombre', 'LIKE', '%' . $palabra . '%')
+                         ->orWhere('m.nombre', 'LIKE', '%' . $palabra . '%')
+                         ->orWhere('c.categoria', 'LIKE', '%' . $palabra . '%')
+                         ->orWhere('p.codigo', 'LIKE', $palabra . '%')
+                         ->orWhere('p.codigo_barra', 'LIKE', $palabra . '%');
+                });
+            }
+        });
 
         $productos = $consulta->take(30)->get();
 
         return response()->json($productos);
     }
 
-public function guardar(Request $request)
+    public function guardar(Request $request)
     {
         $request->validate([
             'metodo_pago' => 'required|exists:metodos_pago,id_metodo_pago',

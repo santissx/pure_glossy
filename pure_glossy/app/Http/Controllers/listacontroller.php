@@ -9,83 +9,89 @@ class listacontroller extends Controller
 {
     public function mostrar(Request $request)
     {
-        // Capturamos el texto de búsqueda y forzamos a limpiar espacios extras
         $search = $request->input('search');
         $sort = $request->input('sort');
 
-        // 1. Iniciamos la consulta limpia sobre la tabla productos (tal cual lo hacés en Ventas)
         $query = DB::table('productos');
 
         if (!empty($search)) {
-            // Normalizamos el string de la URL: pasamos a minúsculas y limpiamos espacios múltiples
             $busquedaLimpia = trim(preg_replace('/\s+/', ' ', mb_strtolower($search, 'UTF-8')));
-            
-            // Separamos por palabras individuales ("lampara", "12w")
-            $palabras = array_filter(explode(' ', $busquedaLimpia));
 
-            $query->where(function ($q) use ($palabras) {
-                foreach ($palabras as $palabra) {
-                    
-                    // Quitamos las tildes y el acento suelto ´ de la palabra que busca el usuario
-                    $palabraSinTilde = str_replace(
-                        ['á', 'é', 'í', 'ó', 'ú', '´'],
-                        ['a', 'e', 'i', 'o', 'u', ''],
-                        $palabra
-                    );
+            // Verificamos primero si es una coincidencia exacta por código o código de barras
+            $existeExacto = DB::table('productos')
+                ->where('codigo_barra', $busquedaLimpia)
+                ->orWhere('codigo', $busquedaLimpia)
+                ->exists();
 
-                    // Reemplazamos virtualmente las tildes en la columna 'nombre' de la BD antes de comparar
-                    $columnaNombreLimpia = "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(productos.nombre, 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'), '´', ''))";
+            if ($existeExacto) {
+                $query->where(function ($q) use ($busquedaLimpia) {
+                    $q->where('productos.codigo_barra', $busquedaLimpia)
+                    ->orWhere('productos.codigo', $busquedaLimpia);
+                });
+            } else {
+                $palabras = array_filter(explode(' ', $busquedaLimpia));
 
-                    $q->where(function ($subQ) use ($columnaNombreLimpia, $palabraSinTilde, $palabra) {
-                        $subQ->where(DB::raw($columnaNombreLimpia), 'LIKE', '%' . $palabraSinTilde . '%')
-                            ->orWhere('productos.codigo', 'LIKE', '%' . $palabra . '%')
-                            ->orWhere('productos.codigo_barra', 'LIKE', '%' . $palabra . '%');
-                    });
-                }
-            });
+                $query->where(function ($q) use ($palabras) {
+                    foreach ($palabras as $palabra) {
+                        $palabraSinTilde = str_replace(
+                            ['á', 'é', 'í', 'ó', 'ú', '´'],
+                            ['a', 'e', 'i', 'o', 'u', ''],
+                            $palabra
+                        );
+
+                        $columnaNombreLimpia = "LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(productos.nombre, 'á', 'a'), 'é', 'e'), 'í', 'i'), 'ó', 'o'), 'ú', 'u'), '´', ''))";
+
+                        $q->where(function ($subQ) use ($columnaNombreLimpia, $palabraSinTilde, $palabra) {
+                            $subQ->where(DB::raw($columnaNombreLimpia), 'LIKE', '%' . $palabraSinTilde . '%')
+                                ->orWhere('productos.codigo', 'LIKE', $palabra . '%')
+                                ->orWhere('productos.codigo_barra', 'LIKE', $palabra . '%');
+                        });
+                    }
+                });
+            }
         }
 
-        // Ordenar por stock si el usuario lo solicita
         if ($sort === 'stock_asc') {
             $query->orderBy('productos.stock', 'asc');
         } elseif ($sort === 'stock_desc') {
             $query->orderBy('productos.stock', 'desc');
         }
 
-        // 2. Obtenemos los productos correctos (aquí ya entran los que tienen tilde)
         $productosFiltrados = $query->get();
 
-        // 3. Adjuntamos los nombres de categorías y proveedores de manera individual 
-        // Esto evita que el cruce de tablas rompa el juego de caracteres de las tildes
+        // Mapeo individual para evitar problemas de encoding/caracteres en joins
         $productosMapeados = [];
         foreach ($productosFiltrados as $producto) {
             $categoriaNombre = DB::table('categorias')
                 ->where('id_categoria', $producto->id_categoria)
                 ->value('categoria');
 
+            $marcaNombre = DB::table('marcas')
+                ->where('id_marca', $producto->id_marca ?? null)
+                ->value('nombre');
+
             $proveedorNombre = DB::table('proveedores')
                 ->where('id_proveedor', $producto->id_proveedor)
                 ->value('nombre');
 
             $producto->categoria = $categoriaNombre ?? 'Sin categoría';
+            $producto->nombre_marca = $marcaNombre ?? 'Sin marca';
             $producto->nombre_proveedor = $proveedorNombre ?? 'Sin proveedor';
             
             $productosMapeados[] = $producto;
         }
 
-        // Lo convertimos en colección para mantener la compatibilidad con el Blade (como ->isEmpty())
         $productos = collect($productosMapeados);
 
-        $proveedores = DB::table('proveedores')
-            ->where('estado', 'activo')
-            ->get();
-
+        $proveedores = DB::table('proveedores')->where('estado', 'activo')->get();
         $categorias = DB::table('categorias')->get();
+        $marcas = DB::table('marcas')->where('estado', 'activo')->orderBy('nombre', 'asc')->get();
 
         return view('lista', [
             'productos'   => $productos,
             'proveedores' => $proveedores,
             'categorias'  => $categorias,
+            'marcas'      => $marcas,
             'search'      => $search,
             'sort'        => $sort, 
         ]);
@@ -99,8 +105,9 @@ class listacontroller extends Controller
             'codigo_barra' => 'required|string|max:255|unique:productos,codigo_barra',
             'precio_lista' => 'required|numeric|regex:/^\d{1,10}(\.\d{0,2})?$/',
             'precio_venta' => 'required|numeric|regex:/^\d{1,10}(\.\d{0,2})?$/',
-            'id_proveedor' => 'required|int|min:1',
+            'id_proveedor' => 'nullable|int', // Proveedor opcional o independiente
             'id_categoria' => 'required|int|min:1',
+            'id_marca'     => 'nullable|int', // Marca independiente
             'stock'        => 'required|int',
         ], [
             'codigo.unique' => '¡Atención! El Código ingresado ya está asignado a otro producto existente.',
@@ -113,8 +120,9 @@ class listacontroller extends Controller
             'codigo_barra' => $request->input('codigo_barra'),
             'precio_lista' => $request->input('precio_lista'),
             'precio_venta' => $request->input('precio_venta'),
-            'id_proveedor' => $request->input('id_proveedor'),
+            'id_proveedor' => $request->input('id_proveedor') ?: null,
             'id_categoria' => $request->input('id_categoria'),
+            'id_marca'     => $request->input('id_marca') ?: null,
             'stock'        => $request->input('stock'),
             'estado'       => 'activo',
         ]);
@@ -133,8 +141,9 @@ class listacontroller extends Controller
             'codigo_barra' => 'required|string|max:255|unique:productos,codigo_barra,' . $id_producto . ',id_producto',
             'precio_lista' => 'required|numeric|regex:/^\d{1,10}(\.\d{0,2})?$/',
             'precio_venta' => 'required|numeric|regex:/^\d{1,10}(\.\d{0,2})?$/',
-            'id_proveedor' => 'required|int|min:1',
+            'id_proveedor' => 'nullable|int',
             'id_categoria' => 'required|int|min:1',
+            'id_marca'     => 'nullable|int',
             'stock'        => 'required|int',
             'estado'       => 'nullable|string|max:255',
         ], [
@@ -150,8 +159,9 @@ class listacontroller extends Controller
                 'codigo_barra' => $request->input('codigo_barra'),
                 'precio_lista' => $request->input('precio_lista'),
                 'precio_venta' => $request->input('precio_venta'),
-                'id_proveedor' => $request->input('id_proveedor'),
+                'id_proveedor' => $request->input('id_proveedor') ?: null,
                 'id_categoria' => $request->input('id_categoria'),
+                'id_marca'     => $request->input('id_marca') ?: null,
                 'stock'        => $request->input('stock'),
                 'estado'       => $request->input('estado'),
             ]);
@@ -159,7 +169,7 @@ class listacontroller extends Controller
         return redirect()->route('views.lista', [
             'search' => $request->query('search'),
             'sort'   => $request->query('sort')
-        ])->with('success', 'Producto modified con éxito.');
+        ])->with('success', 'Producto modificado con éxito.');
     }
 
     public function borrar(Request $request, $id_producto)

@@ -189,26 +189,31 @@
 
 {{-- MODAL: Buscar Producto --}}
 <div class="modal fade" id="buscarProductoModal" tabindex="-1" aria-labelledby="buscarProductoModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content bg-dark text-white border border-secondary">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="buscarProductoModalLabel">Buscar Producto</h5>
+                <h5 class="modal-title" id="buscarProductoModalLabel">
+                    <i class="fas fa-search me-2"></i>Buscar Producto / Cosmético
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <input type="text" id="buscarProductoInput" class="form-control mb-3" placeholder="Buscar por nombre o código...">
-                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                    <table class="table table-dark table-striped">
+                <input type="text" id="buscarProductoInput" class="form-control mb-3 bg-secondary text-white border-0" placeholder="Buscar por nombre, marca (ej. MAC), categoría (ej. Gloss) o código...">
+                <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                    <table class="table table-dark table-striped align-middle mb-0">
                         <thead>
-                            <tr>
-                                <th>Código de barra</th>
-                                <th>Nombre</th>
+                            <tr class="text-info">
+                                <th>Código Barra</th>
+                                <th>Producto</th>
+                                <th>Marca</th>
+                                <th>Categoría</th>
                                 <th>Precio</th>
                                 <th>Stock</th>
-                                <th>Acciones</th>
+                                <th class="text-center">Acción</th>
                             </tr>
                         </thead>
                         <tbody id="resultadosProductos">
+                            {{-- Se carga dinámicamente vía AJAX --}}
                         </tbody>
                     </table>
                 </div>
@@ -322,25 +327,45 @@
     // 1. BÚSQUEDA Y AGREGADO DE PRODUCTOS INDIVIDUALES (NORMAL)
     // ==========================================
     document.getElementById('buscarProductoInput').addEventListener('input', function () {
-        const termino = this.value;
+        const termino = this.value.trim();
 
-        if (termino.length > 1) { 
+        if (termino.length > 0) { 
             fetch(`/buscar-productos?q=${encodeURIComponent(termino)}`)
                 .then(response => response.json())
                 .then(data => {
                     const resultados = document.getElementById('resultadosProductos');
                     resultados.innerHTML = '';
 
+                    if (data.length === 0) {
+                        resultados.innerHTML = `
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-3">
+                                    No se encontraron productos que coincidan con la búsqueda.
+                                </td>
+                            </tr>`;
+                        return;
+                    }
+
                     data.forEach(producto => {
                         const fila = document.createElement('tr');
+                        const marcaBadge = producto.marca ? `<span class="badge bg-info text-dark">${producto.marca}</span>` : '<span class="text-muted small">Sin marca</span>';
+                        const categoriaBadge = producto.categoria ? `<span class="badge bg-secondary">${producto.categoria}</span>` : '<span class="text-muted small">General</span>';
+
                         fila.innerHTML = `
-                            <td>${producto.codigo_barra || '-'}</td>
-                            <td>${producto.nombre}</td>
-                            <td>$${parseFloat(producto.precio_venta).toFixed(2)}</td>
+                            <td>${producto.codigo_barra || producto.codigo || '-'}</td>
+                            <td class="fw-bold">${producto.nombre}</td>
+                            <td>${marcaBadge}</td>
+                            <td>${categoriaBadge}</td>
+                            <td class="text-success fw-bold">$${parseFloat(producto.precio_venta).toFixed(2)}</td>
                             <td>${producto.stock}</td>
-                            <td>
-                                <button type="button" class="btn btn-success btn-sm agregar-producto" data-id="${producto.id_producto}">
-                                    Agregar
+                            <td class="text-center">
+                                <button type="button" class="btn btn-success btn-sm px-3 agregar-producto" 
+                                        data-id="${producto.id_producto}"
+                                        data-codigo="${producto.codigo_barra || producto.codigo || '-'}"
+                                        data-nombre="${producto.nombre}"
+                                        data-precio="${producto.precio_venta}"
+                                        data-stock="${producto.stock}">
+                                    <i class="fas fa-plus"></i> Agregar
                                 </button>
                             </td>
                         `;
@@ -348,21 +373,22 @@
                     });
                 })
                 .catch(error => console.error('Error en la búsqueda:', error));
+        } else {
+            document.getElementById('resultadosProductos').innerHTML = '';
         }
     });
 
     document.addEventListener('click', function (e) {
-        if (e.target.classList.contains('agregar-producto')) {
-            const fila = e.target.closest('tr');
-            const id_producto = e.target.dataset.id;
+        const btn = e.target.closest('.agregar-producto');
+        if (btn) {
+            const id_producto = btn.dataset.id;
             if (!id_producto) return;
             
-            const codigo_barra = fila.cells[0].textContent.trim();
-            const nombre = fila.cells[1].textContent.trim();
-            const precio = parseFloat(fila.cells[2].textContent.replace('$', '').trim());
-            const stock = parseInt(fila.cells[3].textContent.trim());
+            const codigo_barra = btn.dataset.codigo;
+            const nombre = btn.dataset.nombre;
+            const precio = parseFloat(btn.dataset.precio);
+            const stock = parseInt(btn.dataset.stock);
 
-            // Identificador exclusivo para productos vendidos a precio lista
             const rowId = `normal-${id_producto}`;
             const filaExistente = document.querySelector(`tr[data-row-id="${rowId}"]`);
 
