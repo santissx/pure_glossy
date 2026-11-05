@@ -9,23 +9,45 @@ class PromocionController extends Controller
 {
     public function index()
     {
-        // 1. Obtener promociones solo activas
+        // 1. Obtener promociones activas
         $promociones = DB::table('promociones')
             ->where('estado', 'activo')
             ->get();
 
-        // 2. Adjuntar los productos correspondientes a cada promoción
+        // 2. Adjuntar los productos con su marca y categoría
         foreach ($promociones as $promo) {
             $promo->productos = DB::table('promocion_productos as pp')
                 ->join('productos as p', 'pp.id_producto', '=', 'p.id_producto')
+                ->leftJoin('marcas as m', 'p.id_marca', '=', 'm.id_marca')
+                ->leftJoin('categorias as c', 'p.id_categoria', '=', 'c.id_categoria')
                 ->where('pp.id_promocion', $promo->id_promocion)
-                ->select('p.id_producto', 'p.nombre', 'p.precio_venta', 'pp.cantidad', 'pp.descuento_porcentaje')
+                ->select(
+                    'p.id_producto', 
+                    'p.nombre', 
+                    'p.precio_venta', 
+                    'pp.cantidad', 
+                    'pp.descuento_porcentaje',
+                    'm.nombre as marca',
+                    'c.categoria as categoria'
+                )
                 ->get();
         }
 
-        // 3. Obtener productos activos para los buscadores (Crear/Editar)
-        $productos = DB::table('productos')
-            ->where('estado', 'activo')
+        // 3. Obtener productos activos con marca y categoría para los buscadores de los modales
+        $productos = DB::table('productos as p')
+            ->leftJoin('marcas as m', 'p.id_marca', '=', 'm.id_marca')
+            ->leftJoin('categorias as c', 'p.id_categoria', '=', 'c.id_categoria')
+            ->where('p.estado', 'activo')
+            ->select(
+                'p.id_producto',
+                'p.nombre',
+                'p.codigo',
+                'p.codigo_barra',
+                'p.precio_venta',
+                'm.nombre as marca',
+                'c.categoria as categoria'      
+            )
+            ->orderBy('p.nombre', 'asc')
             ->get();
 
         return view('promociones', compact('promociones', 'productos'));
@@ -58,7 +80,6 @@ class PromocionController extends Controller
 
                     if ($promo->tipo_descuento === 'producto') {
                         $descuentoProducto = (float) $producto->descuento_porcentaje;
-
                         $precioProducto = $precioProducto * (1 - $descuentoProducto / 100);
                     }
 
@@ -67,7 +88,6 @@ class PromocionController extends Controller
 
                 if ($promo->tipo_descuento === 'promocion') {
                     $descuentoPromocion = (float) $promo->descuento_porcentaje;
-
                     $nuevoPrecio = $nuevoPrecio * (1 - $descuentoPromocion / 100);
                 }
 
@@ -93,7 +113,7 @@ class PromocionController extends Controller
                 'Error al actualizar los precios: ' . $e->getMessage()
             );
         }
-}
+    }
 
     public function store(Request $request)
     {
@@ -105,7 +125,6 @@ class PromocionController extends Controller
             'nombre' => 'required|string|max:255',
             'precio' => 'required|numeric|min:0',
             'tipo_descuento' => 'required|in:promocion,producto',
-            // Cambiamos a 'nullable' o condicional, permitiendo que pase cuando es por producto:
             'descuento_porcentaje' => 'required_if:tipo_descuento,promocion|nullable|numeric|min:0|max:100',
             'productos' => 'required|array|min:1',
             'productos.*.id_producto' => 'required|integer',
@@ -164,7 +183,6 @@ class PromocionController extends Controller
             'nombre' => 'required|string|max:255',
             'precio' => 'required|numeric|min:0',
             'tipo_descuento' => 'required|in:promocion,producto',
-            // Hacemos lo mismo aquí para la actualización:
             'descuento_porcentaje' => 'required_if:tipo_descuento,promocion|nullable|numeric|min:0|max:100',
             'productos' => 'required|array|min:1',
             'productos.*.id_producto' => 'required|integer',
@@ -220,11 +238,10 @@ class PromocionController extends Controller
                 'Error al actualizar la promoción: ' . $e->getMessage()
             );
         }
-}
+    }
 
     public function destroy($id)
     {
-        // Borrado Lógico: Cambia estado a 'inactivo' para preservar auditorías
         DB::table('promociones')
             ->where('id_promocion', $id)
             ->update(['estado' => 'inactivo']);

@@ -9,9 +9,8 @@ class HistorialController extends Controller
 {
     public function mostrar(Request $request)
     {
-        // Construir la consulta base
         $query = DB::table('ventas')
-            ->leftJoin('ventas_anuladas', 'ventas.id_venta', '=', 'ventas_anuladas.id_venta') // Unión para identificar anuladas
+            ->leftJoin('ventas_anuladas', 'ventas.id_venta', '=', 'ventas_anuladas.id_venta')
             ->join('users', 'ventas.id_usuario', '=', 'users.id')
             ->join('metodos_pago', 'ventas.id_metodo_pago', '=', 'metodos_pago.id_metodo_pago')
             ->leftJoin('clientes_corrientes', 'ventas.id_cliente', '=', 'clientes_corrientes.id_cliente')
@@ -30,19 +29,19 @@ class HistorialController extends Controller
                 'ventas.cliente_telefono',
                 'ventas.observaciones'
             )
-            ->whereNull('ventas_anuladas.id_venta'); // Excluir ventas anuladas
+            ->whereNull('ventas_anuladas.id_venta');
     
         // 1. Filtro por Vendedor
         if ($request->filled('vendedor')) {
             $query->where('users.id', $request->input('vendedor'));
         }
 
-        // 2. Filtro por Cliente (Funcionalidad Tuya)
+        // 2. Filtro por Cliente
         if ($request->filled('id_cliente')) {
             $query->where('ventas.id_cliente', $request->input('id_cliente'));
         }
     
-        // 3. Filtro de Fechas adaptado para DATETIME (Tu lógica segura anti-errores)
+        // 3. Filtro de Fechas
         if ($request->filled('fechainicio') && $request->filled('fechafin')) {
             $query->whereBetween('ventas.fecha_venta', [
                 $request->input('fechainicio') . ' 00:00:00', 
@@ -54,21 +53,15 @@ class HistorialController extends Controller
             $query->where('ventas.fecha_venta', '<=', $request->input('fechafin') . ' 23:59:59');
         }
     
-        // Obtener los resultados ordenados
         $ventas = $query->orderBy('ventas.fecha_venta', 'desc')->get();
-    
-        // Obtener listas para los menús desplegables (Trayendo a todos los estados activos sin discriminar administrador/empleado)
         $vendedores = DB::table('users')->select('id', 'name')->where('estado', 'activo')->get();
         $clientes = DB::table('clientes_corrientes')->where('estado', 'activo')->get(); 
-    
-        // Calcular el total de ventas filtradas
         $totalVentas = $ventas->sum('monto_total');
 
-        // Retornar la vista con los datos unificados
         return view('historial', [
-            'ventas' => $ventas,
-            'vendedores' => $vendedores,
-            'clientes' => $clientes, 
+            'ventas'      => $ventas,
+            'vendedores'  => $vendedores,
+            'clientes'    => $clientes, 
             'totalVentas' => $totalVentas, 
         ]);
     }
@@ -77,16 +70,19 @@ class HistorialController extends Controller
     {
         $productos = DB::table('ventas_productos')
             ->join('productos', 'ventas_productos.id_producto', '=', 'productos.id_producto')
+            ->leftJoin('marcas', 'productos.id_marca', '=', 'marcas.id_marca')
+            ->leftJoin('categorias', 'productos.id_categoria', '=', 'categorias.id_categoria')
             ->select(
                 'productos.nombre as producto',
+                'marcas.nombre as marca',
+                'categorias.categoria as categoria',
                 'ventas_productos.cantidad',
                 'ventas_productos.precio',
-                'ventas_productos.precio_lista' // <--- Seleccionamos el precio de lista original
+                'ventas_productos.precio_lista'
             )
             ->where('ventas_productos.id_venta', $idVenta)
             ->get();
 
-        // Adjuntamos la leyenda "- Promo" si el precio vendido es menor al precio de lista
         foreach ($productos as $p) {
             if (isset($p->precio_lista) && $p->precio < $p->precio_lista) {
                 $p->producto .= ' - Promo';
@@ -99,17 +95,14 @@ class HistorialController extends Controller
     public function anularVenta(Request $request)
     {
         $validated = $request->validate([
-            'id_venta' => 'required|exists:ventas,id_venta',
+            'id_venta'            => 'required|exists:ventas,id_venta',
             'id_usuario_anulador' => 'required|exists:users,id',
-            'descripcion' => 'required|string|max:255',
+            'descripcion'         => 'required|string|max:255',
         ]);
 
         $productos = DB::table('ventas_productos')
             ->join('productos', 'ventas_productos.id_producto', '=', 'productos.id_producto')
-            ->select(
-                'productos.id_producto',
-                'ventas_productos.cantidad'
-            )
+            ->select('productos.id_producto', 'ventas_productos.cantidad')
             ->where('ventas_productos.id_venta', $validated['id_venta'])
             ->get();
 
@@ -120,9 +113,9 @@ class HistorialController extends Controller
         }
         
         DB::table('ventas_anuladas')->insert([
-            'id_venta' => $validated['id_venta'],
+            'id_venta'            => $validated['id_venta'],
             'id_usuario_anulador' => $validated['id_usuario_anulador'],
-            'descripcion' => $validated['descripcion'],
+            'descripcion'         => $validated['descripcion'],
         ]);
 
         return redirect()->back()->with('success', 'Venta anulada correctamente.');
@@ -152,26 +145,25 @@ class HistorialController extends Controller
 
         $productos = DB::table('ventas_productos')
             ->join('productos', 'ventas_productos.id_producto', '=', 'productos.id_producto')
+            ->leftJoin('marcas', 'productos.id_marca', '=', 'marcas.id_marca')
             ->leftJoin('categorias', 'productos.id_categoria', '=', 'categorias.id_categoria')
             ->select(
                 'productos.nombre as producto',
                 'productos.codigo',
                 'productos.codigo_barra',
-                'productos.id_categoria',
+                'marcas.nombre as nombre_marca',
                 'categorias.categoria as nombre_categoria',
                 'ventas_productos.cantidad',
                 'ventas_productos.precio',
-                'ventas_productos.precio_lista' // <--- Seleccionamos el precio de lista
+                'ventas_productos.precio_lista'
             )
             ->where('ventas_productos.id_venta', $idVenta)
             ->get();
 
         $local = [
-            'nombre'    => 'SOLUCIONES ELÉCTRICAS',
-            'telefono'  => '3705033180',
-            'direccion' => 'AV. Cabral 586 - Formosa Capital',
-            'facebook'  => 'Soluciones Eléctricas Fsa',
-            'instagram' => '@solucioneselectricasfsa',
+            'nombre'    => 'Pure Glossy',
+            'telefono'  => '+54 9 3704 09-0295',
+            'instagram' => '@pure.glossy',
         ];
 
         return view('ticket', compact('venta', 'productos', 'local'));

@@ -26,13 +26,13 @@
 @endif
 
 <div class="row h-100">
-    {{-- Columna Izquierda (8 columnas) --}}
+    {{-- Columna Izquierda --}}
     <div class="col-lg-8 d-flex flex-column">
         
         <div class="card mb-3 flex-grow-1 left-table position-relative">
             <div class="card-header d-flex justify-content-between align-items-center bg-dark text-white border-bottom border-secondary py-3">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-tags me-2"></i>Gestión de Promociones
+                    <i class="fas fa-tags me-2"></i>Gestión de Promociones / Combos
                 </h5>
                 <div class="d-flex gap-2">
                     <form action="{{ route('promociones.actualizar-precios') }}" method="POST" class="d-inline">
@@ -68,8 +68,14 @@
                                 <td class="border-secondary">
                                     <ul class="mb-0 ps-3 small text-white-50">
                                         @foreach($promo->productos as $prod)
-                                            <li>
-                                                <strong class="text-white">{{ $prod->cantidad }}x</strong> {{ $prod->nombre }} 
+                                            <li class="mb-1">
+                                                <strong class="text-white">{{ $prod->cantidad }}x</strong> {{ $prod->nombre }}
+                                                @if(!empty($prod->marca))
+                                                    <span class="badge bg-info text-dark">{{ $prod->marca }}</span>
+                                                @endif
+                                                @if(!empty($prod->categoria))
+                                                    <span class="badge bg-secondary">{{ $prod->categoria }}</span>
+                                                @endif
                                                 <span>(${{ number_format($prod->precio_venta, 2) }})</span>
                                             </li>
                                         @endforeach
@@ -108,7 +114,7 @@
 
     </div>
 
-    {{-- Columna Derecha (4 columnas) --}}
+    {{-- Columna Derecha --}}
     <div class="col-lg-4 d-flex flex-column">
         @include('parciales.columna_derecha')
     </div>
@@ -116,7 +122,7 @@
 
 {{-- Modal Crear Promoción --}}
 <div class="modal fade" id="modalCrearPromo" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content bg-dark text-white border-secondary">
             <form action="{{ route('promociones.store') }}" method="POST" id="formCrearPromo">
                 @csrf
@@ -128,12 +134,11 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Nombre de la Promoción</label>
-                        <input type="text" name="nombre" class="form-control bg-dark text-white border-secondary" placeholder="Ej: Combo 2 Lámparas + 2 Tomacorrientes" required>
+                        <input type="text" name="nombre" class="form-control bg-dark text-white border-secondary" placeholder="Ej: Kit Labios (1 Gloss + 1 Delineador)" required>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tipo de descuento</label>
-
                         <select name="tipo_descuento"
                                 id="tipo_descuento"
                                 class="form-select bg-dark text-white border-secondary"
@@ -142,27 +147,28 @@
                             <option value="promocion">Descuento sobre toda la promoción</option>
                             <option value="producto">Descuento por producto</option>
                         </select>
-
                         <small class="text-muted">
                             Elegí una sola modalidad de descuento para esta promoción.
                         </small>
                     </div>
 
                     <div class="card p-3 bg-dark border border-secondary mb-3">
-                        <h6 class="fw-bold mb-2"><i class="fas fa-search me-1"></i> Buscar Productos para el Combo</h6>
+                        <h6 class="fw-bold mb-2"><i class="fas fa-search me-1"></i> Buscar Cosméticos para el Combo</h6>
                         
                         <div class="mb-2">
-                            <input type="text" id="inputBuscadorPromo" class="form-control bg-dark text-white border-secondary" placeholder="Escribe para buscar... (ej: lampara 12w)" onkeyup="filtrarProductosPromo('inputBuscadorPromo', '.fila-producto-promo')">
+                            <input type="text" id="inputBuscadorPromo" class="form-control bg-dark text-white border-secondary" placeholder="Buscar por nombre, marca (ej. MAC), categoría (ej. Gloss) o código..." onkeyup="filtrarProductosPromo('inputBuscadorPromo', '.fila-producto-promo')">
                         </div>
 
-                        <div class="table-responsive border border-secondary rounded mb-3" style="max-height: 180px; overflow-y: auto;">
+                        <div class="table-responsive border border-secondary rounded mb-3" style="max-height: 200px; overflow-y: auto;">
                             <table class="table table-dark table-hover table-sm mb-0 align-middle">
                                 <thead>
                                     <tr class="bg-dark text-white border-bottom border-secondary">
                                         <th class="border-secondary bg-dark text-white">Producto</th>
-                                        <th class="border-secondary bg-dark text-white">Precio Venta</th>
-                                        <th style="width: 90px;" class="border-secondary bg-dark text-white">Cant.</th>
-                                        <th style="width: 70px;" class="text-center border-secondary bg-dark text-white">Añadir</th>
+                                        <th class="border-secondary bg-dark text-white">Marca</th>
+                                        <th class="border-secondary bg-dark text-white">Categoría</th>
+                                        <th class="border-secondary bg-dark text-white">Precio</th>
+                                        <th style="width: 80px;" class="border-secondary bg-dark text-white">Cant.</th>
+                                        <th style="width: 60px;" class="text-center border-secondary bg-dark text-white">Añadir</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -170,9 +176,13 @@
                                     <tr class="fila-producto-promo border-secondary" 
                                         data-id="{{ $p->id_producto }}" 
                                         data-nombre="{{ $p->nombre }}" 
-                                        data-codigo="{{ $p->codigo_barra ?? '' }}" 
+                                        data-marca="{{ $p->marca ?? '' }}"
+                                        data-categoria="{{ $p->categoria ?? '' }}"
+                                        data-codigo="{{ $p->codigo_barra ?? $p->codigo ?? '' }}" 
                                         data-precio="{{ $p->precio_venta }}">
-                                        <td class="border-secondary">{{ $p->nombre }}</td>
+                                        <td class="border-secondary fw-bold">{{ $p->nombre }}</td>
+                                        <td class="border-secondary"><span class="badge bg-info text-dark">{{ $p->marca ?? 'Sin marca' }}</span></td>
+                                        <td class="border-secondary"><span class="badge bg-secondary">{{ $p->categoria ?? 'General' }}</span></td>
                                         <td class="text-success fw-bold border-secondary">${{ number_format($p->precio_venta, 2) }}</td>
                                         <td class="border-secondary">
                                             <input type="number" value="1" min="1" class="form-control form-control-sm bg-dark text-white border-secondary input-cant-item">
@@ -193,19 +203,17 @@
                             <table class="table table-dark table-striped mb-0 align-middle">
                                 <thead>
                                     <tr class="bg-dark text-white border-bottom border-secondary">
-                                        <thead>
-                                            <tr class="bg-dark text-white border-bottom border-secondary">
-                                                <th class="border-secondary bg-dark text-white">Producto</th>
-                                                <th style="width: 100px;" class="border-secondary bg-dark text-white">Cantidad</th>
-                                                <th style="width: 120px;" class="border-secondary bg-dark text-white">Subtotal</th>
-                                                <th style="width: 50px;" class="text-center border-secondary bg-dark text-white">Acción</th>
-                                            </tr>
-                                        </thead>
+                                        <th class="border-secondary bg-dark text-white">Producto</th>
+                                        <th class="border-secondary bg-dark text-white">Marca / Categoría</th>
+                                        <th style="width: 100px;" class="border-secondary bg-dark text-white">Cantidad</th>
+                                        <th style="width: 130px;" class="border-secondary bg-dark text-white">Descuento (%)</th>
+                                        <th style="width: 120px;" class="border-secondary bg-dark text-white">Subtotal</th>
+                                        <th style="width: 50px;" class="text-center border-secondary bg-dark text-white">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tablaProductosCombo">
                                     <tr>
-                                        <td colspan="4" class="text-center text-muted small py-3 border-secondary">Usa el buscador arriba para añadir productos al combo.</td>
+                                        <td colspan="6" class="text-center text-muted small py-3 border-secondary">Usa el buscador arriba para añadir productos al combo.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -213,7 +221,7 @@
                     </div>
 
                     <div class="mb-2" id="bloqueDescuentoPromocion">
-                        <label class="form-label fw-bold text-success">Descuento (%)</label>
+                        <label class="form-label fw-bold text-success">Descuento Global (%)</label>
                         <input type="number"
                             step="0.01"
                             min="0"
@@ -232,9 +240,6 @@
                     <div class="mb-2">
                         <label class="form-label fw-bold text-success">Precio Final de la Promoción ($)</label>
                         <input type="number" step="0.01" id="precio" name="precio" class="form-control form-control-lg fw-bold bg-dark text-white border-secondary" required placeholder="0.00">
-                        <small class="text-muted">
-                            Se calcula automáticamente sumando los productos, pero puedes cambiar el valor si deseas aplicar un descuento.
-                        </small>
                     </div>
                 </div>
 
@@ -249,7 +254,7 @@
 
 {{-- Modal Editar Promoción --}}
 <div class="modal fade" id="modalEditarPromo" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content bg-dark text-white border-secondary">
             <form id="formEditarPromo" method="POST">
                 @csrf
@@ -269,17 +274,19 @@
                         <h6 class="fw-bold mb-2"><i class="fas fa-search me-1"></i> Buscar Productos para Añadir/Sumar</h6>
                         
                         <div class="mb-2">
-                            <input type="text" id="inputBuscadorPromoEdit" class="form-control bg-dark text-white border-secondary" placeholder="Escribe para buscar..." onkeyup="filtrarProductosPromo('inputBuscadorPromoEdit', '.fila-producto-promo-edit')">
+                            <input type="text" id="inputBuscadorPromoEdit" class="form-control bg-dark text-white border-secondary" placeholder="Buscar por nombre, marca o categoría..." onkeyup="filtrarProductosPromo('inputBuscadorPromoEdit', '.fila-producto-promo-edit')">
                         </div>
 
-                        <div class="table-responsive border border-secondary rounded mb-3" style="max-height: 180px; overflow-y: auto;">
+                        <div class="table-responsive border border-secondary rounded mb-3" style="max-height: 200px; overflow-y: auto;">
                             <table class="table table-dark table-hover table-sm mb-0 align-middle">
                                 <thead>
                                     <tr class="bg-dark text-white border-bottom border-secondary">
                                         <th class="border-secondary bg-dark text-white">Producto</th>
-                                        <th class="border-secondary bg-dark text-white">Precio Venta</th>
-                                        <th style="width: 90px;" class="border-secondary bg-dark text-white">Cant.</th>
-                                        <th style="width: 70px;" class="text-center border-secondary bg-dark text-white">Añadir</th>
+                                        <th class="border-secondary bg-dark text-white">Marca</th>
+                                        <th class="border-secondary bg-dark text-white">Categoría</th>
+                                        <th class="border-secondary bg-dark text-white">Precio</th>
+                                        <th style="width: 80px;" class="border-secondary bg-dark text-white">Cant.</th>
+                                        <th style="width: 60px;" class="text-center border-secondary bg-dark text-white">Añadir</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -287,9 +294,13 @@
                                     <tr class="fila-producto-promo-edit border-secondary" 
                                         data-id="{{ $p->id_producto }}" 
                                         data-nombre="{{ $p->nombre }}" 
-                                        data-codigo="{{ $p->codigo_barra ?? '' }}" 
+                                        data-marca="{{ $p->marca ?? '' }}"
+                                        data-categoria="{{ $p->categoria ?? '' }}"
+                                        data-codigo="{{ $p->codigo_barra ?? $p->codigo ?? '' }}" 
                                         data-precio="{{ $p->precio_venta }}">
-                                        <td class="border-secondary">{{ $p->nombre }}</td>
+                                        <td class="border-secondary fw-bold">{{ $p->nombre }}</td>
+                                        <td class="border-secondary"><span class="badge bg-info text-dark">{{ $p->marca ?? 'Sin marca' }}</span></td>
+                                        <td class="border-secondary"><span class="badge bg-secondary">{{ $p->categoria ?? 'General' }}</span></td>
                                         <td class="text-success fw-bold border-secondary">${{ number_format($p->precio_venta, 2) }}</td>
                                         <td class="border-secondary">
                                             <input type="number" value="1" min="1" class="form-control form-control-sm bg-dark text-white border-secondary input-cant-item">
@@ -311,8 +322,9 @@
                                 <thead>
                                     <tr class="bg-dark text-white border-bottom border-secondary">
                                         <th class="border-secondary bg-dark text-white">Producto</th>
+                                        <th class="border-secondary bg-dark text-white">Marca / Categoría</th>
                                         <th style="width: 100px;" class="border-secondary bg-dark text-white">Cantidad</th>
-                                        <th style="width: 120px;" class="border-secondary bg-dark text-white">Descuento (%)</th>
+                                        <th style="width: 130px;" class="border-secondary bg-dark text-white">Descuento (%)</th>
                                         <th style="width: 120px;" class="border-secondary bg-dark text-white">Subtotal</th>
                                         <th style="width: 50px;" class="text-center border-secondary bg-dark text-white">Acción</th>
                                     </tr>
@@ -325,7 +337,6 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tipo de descuento</label>
-
                         <select name="tipo_descuento"
                                 id="edit_tipo_descuento"
                                 class="form-select bg-dark text-white border-secondary"
@@ -334,14 +345,10 @@
                             <option value="promocion">Descuento sobre toda la promoción</option>
                             <option value="producto">Descuento por producto</option>
                         </select>
-
-                        <small class="text-muted">
-                            Elegí una sola modalidad de descuento para esta promoción.
-                        </small>
                     </div>
 
                     <div class="mb-2" id="bloqueDescuentoPromocionEdit">
-                        <label class="form-label fw-bold text-success">Descuento (%)</label>
+                        <label class="form-label fw-bold text-success">Descuento Global (%)</label>
                         <input type="number"
                             step="0.01"
                             min="0"
@@ -352,9 +359,6 @@
                             value="0"
                             required
                             onchange="renderizarTablaComboEdit()">
-                        <small class="text-muted">
-                            Ingresá el porcentaje de descuento que tendrá la promoción.
-                        </small>
                     </div>
 
                     <div class="mb-2">
@@ -376,35 +380,35 @@
     let productosCombo = [];
     let productosComboEdit = [];
 
-    // Helper para normalizar acentos
     function normalizarTexto(texto) {
-    if (!texto) return '';
-    return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-}
+        if (!texto) return '';
+        return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    }
 
-// Función de filtrado multipalabra e insensible a acentos
-function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.fila-producto-promo') {
-    const filtroRaw = document.getElementById(inputId).value;
-    const filtroLimpio = normalizarTexto(filtroRaw);
-    const palabras = filtroLimpio.split(' ').filter(p => p !== '');
-    const filas = document.querySelectorAll(filaSelector);
+    // Filtro por Nombre, Marca, Categoría y Código
+    function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.fila-producto-promo') {
+        const filtroLimpio = normalizarTexto(document.getElementById(inputId).value);
+        const palabras = filtroLimpio.split(' ').filter(p => p !== '');
+        const filas = document.querySelectorAll(filaSelector);
 
-    filas.forEach(fila => {
-        const nombre = normalizarTexto(fila.getAttribute('data-nombre'));
-        const codigo = normalizarTexto(fila.getAttribute('data-codigo'));
-        const textoCompleto = `${nombre} ${codigo}`;
+        filas.forEach(fila => {
+            const nombre = normalizarTexto(fila.getAttribute('data-nombre'));
+            const marca = normalizarTexto(fila.getAttribute('data-marca'));
+            const categoria = normalizarTexto(fila.getAttribute('data-categoria'));
+            const codigo = normalizarTexto(fila.getAttribute('data-codigo'));
+            const textoCompleto = `${nombre} ${marca} ${categoria} ${codigo}`;
 
-        const coincide = palabras.every(palabra => textoCompleto.includes(palabra));
+            const coincide = palabras.every(palabra => textoCompleto.includes(palabra));
+            fila.style.display = coincide ? '' : 'none';
+        });
+    }
 
-        fila.style.display = coincide ? '' : 'none';
-    });
-}
-
-    // Agregar producto desde tabla buscador
     function agregarItemDesdeFila(btn, modo) {
         const fila = btn.closest('tr');
         const idProducto = fila.getAttribute('data-id');
         const nombre = fila.getAttribute('data-nombre');
+        const marca = fila.getAttribute('data-marca') || 'Sin marca';
+        const categoria = fila.getAttribute('data-categoria') || 'General';
         const precio = parseFloat(fila.getAttribute('data-precio'));
         const inputCant = fila.querySelector('.input-cant-item');
         const cantidad = parseInt(inputCant.value);
@@ -423,8 +427,11 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
             arrayTarget.push({
                 id_producto: idProducto,
                 nombre: nombre,
+                marca: marca,
+                categoria: categoria,
                 precio: precio,
-                cantidad: cantidad
+                cantidad: cantidad,
+                descuento_porcentaje: 0
             });
         }
 
@@ -437,7 +444,6 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
         }
     }
 
-    // Modal Crear
     function eliminarProductoCombo(index) {
         productosCombo.splice(index, 1);
         renderizarTablaCombo();
@@ -461,21 +467,21 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
     }
 
     function cambiarTipoDescuentoEditar() {
-    const tipoDescuento = document.getElementById('edit_tipo_descuento').value;
-    const bloqueDescuento = document.getElementById('bloqueDescuentoPromocionEdit');
-    const inputDescuento = document.getElementById('edit_descuento_porcentaje');
+        const tipoDescuento = document.getElementById('edit_tipo_descuento').value;
+        const bloqueDescuento = document.getElementById('bloqueDescuentoPromocionEdit');
+        const inputDescuento = document.getElementById('edit_descuento_porcentaje');
 
-    if (tipoDescuento === 'promocion') {
-        bloqueDescuento.style.display = 'block';
-        inputDescuento.disabled = false;
-    } else {
-        bloqueDescuento.style.display = 'none';
-        inputDescuento.value = 0;
-        inputDescuento.disabled = true;
+        if (tipoDescuento === 'promocion') {
+            bloqueDescuento.style.display = 'block';
+            inputDescuento.disabled = false;
+        } else {
+            bloqueDescuento.style.display = 'none';
+            inputDescuento.value = 0;
+            inputDescuento.disabled = true;
+        }
+
+        renderizarTablaComboEdit();
     }
-
-    renderizarTablaComboEdit();
-}
 
     function renderizarTablaCombo() {
         const tbody = document.getElementById('tablaProductosCombo');
@@ -484,7 +490,7 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
         if (productosCombo.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted small py-3 border-secondary">
+                    <td colspan="6" class="text-center text-muted small py-3 border-secondary">
                         Usa el buscador arriba para añadir productos al combo.
                     </td>
                 </tr>`;
@@ -494,7 +500,6 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
         }
 
         let sumaDefecto = 0;
-
         const tipoDescuento = document.getElementById('tipo_descuento').value;
 
         productosCombo.forEach((item, index) => {
@@ -510,54 +515,38 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
 
             tbody.innerHTML += `
                 <tr class="border-secondary">
-                    <td class="border-secondary">
+                    <td class="border-secondary fw-bold">
                         ${item.nombre}
-                        <input type="hidden"
-                            name="productos[${index}][id_producto]"
-                            value="${item.id_producto}">
+                        <input type="hidden" name="productos[${index}][id_producto]" value="${item.id_producto}">
                     </td>
-
+                    <td class="border-secondary">
+                        <span class="badge bg-info text-dark">${item.marca}</span>
+                        <span class="badge bg-secondary">${item.categoria}</span>
+                    </td>
                     <td class="border-secondary">
                         ${item.cantidad}
-                        <input type="hidden"
-                            name="productos[${index}][cantidad]"
-                            value="${item.cantidad}">
+                        <input type="hidden" name="productos[${index}][cantidad]" value="${item.cantidad}">
                     </td>
-
                     <td class="border-secondary">
                         ${
                             tipoDescuento === 'producto'
                             ? `
                                 <input type="number"
-                                    step="0.01"
-                                    min="0"
-                                    max="100"
+                                    step="0.01" min="0" max="100"
                                     class="form-control form-control-sm bg-dark text-white border-secondary"
                                     value="${descuentoProducto}"
                                     onchange="productosCombo[${index}].descuento_porcentaje = parseFloat(this.value) || 0; renderizarTablaCombo();">
-                                <input type="hidden"
-                                    name="productos[${index}][descuento_porcentaje]"
-                                    value="${descuentoProducto}">
+                                <input type="hidden" name="productos[${index}][descuento_porcentaje]" value="${descuentoProducto}">
                             `
                             : `
-                                <span class="text-muted">Sin descuento individual</span>
-                                <input type="hidden"
-                                    name="productos[${index}][descuento_porcentaje]"
-                                    value="0">
+                                <span class="text-muted small">Sin desc. individual</span>
+                                <input type="hidden" name="productos[${index}][descuento_porcentaje]" value="0">
                             `
                         }
                     </td>
-
-                    <td class="fw-bold text-success border-secondary">
-                        $${subtotalFinal.toFixed(2)}
-                    </td>
-
+                    <td class="fw-bold text-success border-secondary">$${subtotalFinal.toFixed(2)}</td>
                     <td class="text-center border-secondary">
-                        <button type="button"
-                            class="btn btn-danger btn-sm px-2 py-0"
-                            onclick="eliminarProductoCombo(${index})">
-                            &times;
-                        </button>
+                        <button type="button" class="btn btn-danger btn-sm px-2 py-0" onclick="eliminarProductoCombo(${index})">&times;</button>
                     </td>
                 </tr>`;
         });
@@ -565,16 +554,12 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
         let precioFinal = sumaDefecto;
 
         if (tipoDescuento === 'promocion') {
-            const descuento = parseFloat(
-                document.getElementById('descuento_porcentaje').value
-            ) || 0;
-
+            const descuento = parseFloat(document.getElementById('descuento_porcentaje').value) || 0;
             precioFinal = sumaDefecto * (1 - descuento / 100);
         } else {
             precioFinal = productosCombo.reduce((total, item) => {
                 const subtotal = item.precio * item.cantidad;
                 const descuento = parseFloat(item.descuento_porcentaje) || 0;
-
                 return total + (subtotal * (1 - descuento / 100));
             }, 0);
         }
@@ -582,13 +567,11 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
         document.getElementById('precio').value = precioFinal.toFixed(2);
     }
 
-    // Modal Editar
     function abrirModalEditar(promo) {
         document.getElementById('formEditarPromo').action = `/promociones/${promo.id_promocion}`;
         document.getElementById('edit_nombre').value = promo.nombre;
         document.getElementById('edit_precio').value = parseFloat(promo.precio).toFixed(2);
         document.getElementById('edit_descuento_porcentaje').value = parseFloat(promo.descuento_porcentaje) || 0;
-
         document.getElementById('edit_tipo_descuento').value = promo.tipo_descuento || 'promocion';
 
         productosComboEdit = [];
@@ -598,6 +581,8 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
                 productosComboEdit.push({
                     id_producto: p.id_producto,
                     nombre: p.nombre,
+                    marca: p.marca || 'Sin marca',
+                    categoria: p.categoria || 'General',
                     precio: parseFloat(p.precio_venta),
                     cantidad: parseInt(p.cantidad),
                     descuento_porcentaje: parseFloat(p.descuento_porcentaje) || 0
@@ -624,7 +609,7 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
         if (productosComboEdit.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center text-muted small py-3 border-secondary">
+                    <td colspan="6" class="text-center text-muted small py-3 border-secondary">
                         Usa el buscador arriba para añadir productos al combo.
                     </td>
                 </tr>`;
@@ -632,12 +617,10 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
             if (recalcularPrecio) {
                 document.getElementById('edit_precio').value = '';
             }
-
             return;
         }
 
         let sumaDefecto = 0;
-
         const tipoDescuento = document.getElementById('edit_tipo_descuento').value;
 
         productosComboEdit.forEach((item, index) => {
@@ -653,55 +636,38 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
 
             tbody.innerHTML += `
                 <tr class="border-secondary">
-                    <td class="border-secondary">
+                    <td class="border-secondary fw-bold">
                         ${item.nombre}
-                        <input type="hidden"
-                            name="productos[${index}][id_producto]"
-                            value="${item.id_producto}">
+                        <input type="hidden" name="productos[${index}][id_producto]" value="${item.id_producto}">
                     </td>
-
+                    <td class="border-secondary">
+                        <span class="badge bg-info text-dark">${item.marca}</span>
+                        <span class="badge bg-secondary">${item.categoria}</span>
+                    </td>
                     <td class="border-secondary">
                         ${item.cantidad}
-                        <input type="hidden"
-                            name="productos[${index}][cantidad]"
-                            value="${item.cantidad}">
+                        <input type="hidden" name="productos[${index}][cantidad]" value="${item.cantidad}">
                     </td>
-
                     <td class="border-secondary">
                         ${
                             tipoDescuento === 'producto'
                             ? `
                                 <input type="number"
-                                    step="0.01"
-                                    min="0"
-                                    max="100"
+                                    step="0.01" min="0" max="100"
                                     class="form-control form-control-sm bg-dark text-white border-secondary"
                                     value="${descuentoProducto}"
                                     onchange="productosComboEdit[${index}].descuento_porcentaje = parseFloat(this.value) || 0; renderizarTablaComboEdit();">
-
-                                <input type="hidden"
-                                    name="productos[${index}][descuento_porcentaje]"
-                                    value="${descuentoProducto}">
+                                <input type="hidden" name="productos[${index}][descuento_porcentaje]" value="${descuentoProducto}">
                             `
                             : `
-                                <span class="text-muted">Sin descuento individual</span>
-                                <input type="hidden"
-                                    name="productos[${index}][descuento_porcentaje]"
-                                    value="0">
+                                <span class="text-muted small">Sin desc. individual</span>
+                                <input type="hidden" name="productos[${index}][descuento_porcentaje]" value="0">
                             `
                         }
                     </td>
-
-                    <td class="fw-bold text-success border-secondary">
-                        $${subtotalFinal.toFixed(2)}
-                    </td>
-
+                    <td class="fw-bold text-success border-secondary">$${subtotalFinal.toFixed(2)}</td>
                     <td class="text-center border-secondary">
-                        <button type="button"
-                            class="btn btn-danger btn-sm px-2 py-0"
-                            onclick="eliminarProductoComboEdit(${index})">
-                            &times;
-                        </button>
+                        <button type="button" class="btn btn-danger btn-sm px-2 py-0" onclick="eliminarProductoComboEdit(${index})">&times;</button>
                     </td>
                 </tr>`;
         });
@@ -710,16 +676,12 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
             let precioFinal = sumaDefecto;
 
             if (tipoDescuento === 'promocion') {
-                const descuento = parseFloat(
-                    document.getElementById('edit_descuento_porcentaje').value
-                ) || 0;
-
+                const descuento = parseFloat(document.getElementById('edit_descuento_porcentaje').value) || 0;
                 precioFinal = sumaDefecto * (1 - descuento / 100);
             } else {
                 precioFinal = productosComboEdit.reduce((total, item) => {
                     const subtotal = item.precio * item.cantidad;
                     const descuento = parseFloat(item.descuento_porcentaje) || 0;
-
                     return total + (subtotal * (1 - descuento / 100));
                 }, 0);
             }
@@ -728,7 +690,6 @@ function filtrarProductosPromo(inputId = 'inputBuscadorPromo', filaSelector = '.
         }
     }
 
-    // Validaciones al enviar
     document.getElementById('formCrearPromo').addEventListener('submit', function(e) {
         if (productosCombo.length === 0) {
             e.preventDefault();

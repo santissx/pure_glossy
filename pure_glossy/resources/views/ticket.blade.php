@@ -73,10 +73,8 @@
                 <h1>{{ $local['nombre'] }}</h1>
                 <img src="{{ asset('logo_se.jpeg') }}" alt="Logo Empresa" class="logo">
                 <div class="datos-local">
-                    <div>Facebook: {{ $local['facebook'] }}</div>
                     <div>Instagram: {{ $local['instagram'] }}</div>
                     <div>Teléfono: {{ $local['telefono'] }}</div>
-                    <div>{{ $local['direccion'] }}</div>
                 </div>
             </div>
 

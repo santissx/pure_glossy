@@ -29,11 +29,10 @@
                                 <td>{{ $venta->id_venta }}</td>
                                 <td>{{ $venta->vendedor_id ?? 'N/A' }} - {{ $venta->vendedor_name ?? 'Sin nombre' }}</td>
                                 <td>{{ $venta->fecha_venta }}</td>
-                                <td>{{ $venta->monto_total }}</td>
-                                <td>{{ $venta->descuento }}</td>
+                                <td>${{ number_format($venta->monto_total, 2) }}</td>
+                                <td>${{ number_format($venta->descuento, 2) }}</td>
                                 <td>{{ $venta->metodo_pago }}</td>
                                 <td>
-                                {{-- Lógica Unificada para la columna Cliente --}}
                                 @if($venta->clientec)
                                     <span class="badge bg-info text-dark">Cta Cte</span> {{ $venta->nombre_clientec }}
                                     @if(!empty($venta->telefono_clientec))
@@ -50,10 +49,9 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex justify-content-center align-items-center gap-2">
-                                        {{-- Añadimos los nuevos atributos data-* para pasárselos de forma síncrona al Modal --}}
                                         <button name="boton detalle"
                                                 type="button" 
-                                                class="btn btn-primary ver-detalle-venta" 
+                                                class="btn btn-primary btn-sm ver-detalle-venta" 
                                                 data-id="{{ $venta->id_venta }}" 
                                                 data-nombre="{{ $venta->cliente_nombre ?? '' }}"
                                                 data-telefono="{{ $venta->cliente_telefono ?? '' }}"
@@ -64,7 +62,7 @@
                                         </button>
                                         <button name="boton anular" 
                                                 type="button" 
-                                                class="btn btn-danger btn-anular-venta" 
+                                                class="btn btn-danger btn-sm btn-anular-venta" 
                                                 data-id="{{ $venta->id_venta }}" 
                                                 data-bs-toggle="modal" 
                                                 data-bs-target="#modalAnularVenta">
@@ -81,7 +79,6 @@
 
                 <div class="filtros mb-3 p-3 bg-dark rounded border border-secondary">
                     <form method="GET" action="{{ route('views.historial') }}">
-                        
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="selectVendedor" class="form-label text-white">Filtrar por vendedor</label>
@@ -128,7 +125,6 @@
                                 <strong>Venta total: <span class="text-success">${{ number_format($totalVentas, 2) }}</span></strong>
                             </h5>
                         </div>
-
                     </form>
                 </div>
                 
@@ -142,7 +138,7 @@
 </div>
 @endsection 
 
-{{-- MODAL DETALLE MODIFICADO: Muestra Nombre, Teléfono y Observaciones --}}
+{{-- MODAL DETALLE DE VENTA --}}
 <div class="modal fade" id="verdetalleventa" tabindex="-1" aria-labelledby="verdetalleventaLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content bg-dark text-white border border-secondary">
@@ -152,9 +148,9 @@
             </div>
             <div class="modal-body">
                 
-                {{-- SECCIÓN DATOS CLIENTE: Cambiamos bg-secondary (gris) por un borde sutil y texto claro --}}
+                {{-- DATOS CLIENTE --}}
                 <div id="detalle_cliente_casual_container" class="mb-3 p-3 bg-dark border border-secondary rounded text-light" style="display: none;">
-                    <h6 class="fw-bold text-info mb-2"><i class="fas fa-user me-2"></i>Datos del Cliente Registrado (Casual)</h6>
+                    <h6 class="fw-bold text-info mb-2"><i class="fas fa-user me-2"></i>Datos del Cliente</h6>
                     <div class="row">
                         <div class="col-6">
                             <strong class="text-white-50">Nombre:</strong> <span id="det_cliente_nombre" class="text-white fw-medium"></span>
@@ -169,24 +165,27 @@
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title">Productos vendidos</h5>
                         <div class="table-responsive flex-grow-1">
-                            <table class="table table-dark table-striped mb-0">
+                            <table class="table table-dark table-striped align-middle mb-0">
                                 <thead>
                                     <tr>
-                                        <th>ID Venta</th>
+                                        <th>ID</th>
                                         <th>Producto</th>
-                                        <th>Cantidad</th>
-                                        <th>Precio</th>
+                                        <th>Marca</th>
+                                        <th>Categoría</th>
+                                        <th class="text-center">Cant.</th>
+                                        <th class="text-end">Precio Unit.</th>
+                                        <th class="text-end">Subtotal</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {{-- Productos vía AJAX --}}
+                                    {{-- Cargado vía AJAX --}}
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
 
-                {{-- SECCIÓN OBSERVACIONES: Agregamos la clase text-light al párrafo para que brille --}}
+                {{-- OBSERVACIONES --}}
                 <div class="mb-2 p-3 bg-dark border border-secondary rounded" id="detalle_observaciones_container" style="display: none;">
                     <h6 class="fw-bold text-warning mb-2"><i class="fas fa-comment-alt me-2"></i>Observaciones Internas</h6>
                     <p class="mb-0 text-light bg-dark" id="det_observaciones" style="white-space: pre-wrap; font-size: 14px;"></p>
@@ -200,6 +199,7 @@
     </div>
 </div>
 
+{{-- MODAL ANULAR VENTA --}}
 <div class="modal fade" id="modalAnularVenta" tabindex="-1" aria-labelledby="modalAnularVentaLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content bg-dark text-light">
@@ -228,17 +228,13 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Carga asíncrona de los productos del Detalle de Venta e Inyección de metadatos
         document.querySelectorAll('.ver-detalle-venta').forEach(button => {
             button.addEventListener('click', function () {
                 const idVenta = this.getAttribute('data-id');
-                
-                // Capturar nuevos campos síncronos desde el botón del bucle
                 const nombre = this.getAttribute('data-nombre');
                 const telefono = this.getAttribute('data-telefono');
                 const observaciones = this.getAttribute('data-observaciones');
 
-                // 1. Controlar contenedor de datos del cliente
                 const contenedorCliente = document.getElementById('detalle_cliente_casual_container');
                 if (nombre || telefono) {
                     document.getElementById('det_cliente_nombre').textContent = nombre ? nombre : 'No indicado';
@@ -248,7 +244,6 @@
                     contenedorCliente.style.display = 'none';
                 }
 
-                // 2. Controlar contenedor de observaciones internas
                 const contenedorObs = document.getElementById('detalle_observaciones_container');
                 if (observaciones) {
                     document.getElementById('det_observaciones').textContent = observaciones;
@@ -257,37 +252,41 @@
                     contenedorObs.style.display = 'none';
                 }
 
-                // 3. Consultar productos del detalle por AJAX
                 fetch(`/detalle-venta/${idVenta}`)
                     .then(response => response.json())
                     .then(data => {
                         const tbody = document.querySelector('#verdetalleventa table tbody');
                         tbody.innerHTML = '';
 
-                        data.forEach(producto => {
+                        data.forEach(item => {
+                            const marcaBadge = item.marca ? `<span class="badge bg-info text-dark">${item.marca}</span>` : '<span class="text-white-50 small">-</span>';
+                            const catBadge = item.categoria ? `<span class="badge bg-secondary">${item.categoria}</span>` : '<span class="text-white-50 small">-</span>';
+                            const subtotal = (parseFloat(item.precio) * parseInt(item.cantidad)).toFixed(2);
+
                             const row = `
                                 <tr>
                                     <td>${idVenta}</td>
-                                    <td>${producto.producto}</td>
-                                    <td>${producto.cantidad}</td>
-                                    <td>${producto.precio}</td>
+                                    <td class="fw-bold">${item.producto}</td>
+                                    <td>${marcaBadge}</td>
+                                    <td>${catBadge}</td>
+                                    <td class="text-center">${item.cantidad}</td>
+                                    <td class="text-end">$${parseFloat(item.precio).toFixed(2)}</td>
+                                    <td class="text-end text-success fw-bold">$${subtotal}</td>
                                 </tr>
                             `;
                             tbody.innerHTML += row;
                         });
                     })
-                    .catch(error => console.error('Error al cargar los detalles de la venta:', error));
+                    .catch(error => console.error('Error al cargar detalle:', error));
             });
         });
 
-        // Inyección dinámica de la ID de venta al Modal de Anulación
         const modalAnularVenta = document.getElementById('modalAnularVenta');
         const inputIdVenta = modalAnularVenta.querySelector('#id_venta');
 
         document.querySelectorAll('.btn-anular-venta').forEach(button => {
             button.addEventListener('click', function () {
-                const idVenta = this.getAttribute('data-id');
-                inputIdVenta.value = idVenta;
+                inputIdVenta.value = this.getAttribute('data-id');
             });
         });
     });
